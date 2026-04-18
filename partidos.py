@@ -1,4 +1,4 @@
-from flask import Blueprint, request jsonify
+from flask import Blueprint, jsonify
 from database.db import get_connection
 
 partidos_blueprint = Blueprint('partidos', __name__)
@@ -26,7 +26,7 @@ def crear_partido():
     
     """ aca lo que sucede es lo siguiente: se ejecuta el metodo insert de sql/datagrip pero los valores son placeholders:%s
     es como una especie de valor seguro que se especifica en sql al ejecutar esto, se insertara en la tabla partidos
-     1 fila con los datos de las claves de los diccionarios de esa tupla
+    1 fila con los datos de las claves de los diccionarios de esa tupla
     """
 
     conexion.commit() # se guardan los cambios
