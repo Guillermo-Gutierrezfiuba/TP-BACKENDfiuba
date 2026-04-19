@@ -1,20 +1,110 @@
-from flask import Blueprint, jsonify
-import db
+from urllib.parse import urlencode
 
-ranking_blueprint = Blueprint('ranking', __name__)
+from flask import Blueprint, jsonify, request
 
-@ranking_blueprint.route('/ranking', methods=['GET'])
+from db import obtener_conexion
+
+ranking_blueprint = Blueprint("ranking", __name__)
+
+
+def respuesta_error(mensaje, codigo):
+    return jsonify({"error": mensaje}), codigo
+
+
+def leer_paginacion():
+    try:
+        limit = int(request.args.get("_limit", request.args.get("limit", 10)))
+        offset = int(request.args.get("_offset", request.args.get("offset", 0)))
+    except ValueError:
+        return None, None, respuesta_error("Paginacion invalida", 400)
+
+    if limit <= 0 or offset < 0:
+        return None, None, respuesta_error("Paginacion invalida", 400)
+
+    return limit, offset, None
+
+
+def construir_links(base_path, limit, offset, total):
+    last_offset = ((total - 1) // limit) * limit if total > 0 else 0
+
+    def build(off):
+        return {"href": f"{base_path}?{urlencode({'_limit': limit, '_offset': off})}"}
+
+    return {
+        "_first": build(0),
+        "_last": build(last_offset),
+        "_next": build(offset + limit) if offset + limit < total else None,
+        "_prev": build(offset - limit) if offset - limit >= 0 else None,
+    }
+
+
+@ranking_blueprint.route("/ranking", methods=["GET"])
 def obtener_ranking():
-    conexion= db.obtener_conexion()
+    limit, offset, error = leer_paginacion()
+    if error:
+        return error
+
+    conexion = obtener_conexion()
     cursor = conexion.cursor(dictionary=True)
 
-    
-    cursor.execute(""" SELECT  u.id, u.nombre, COUNT(p.id) AS total_predicciones, SUM(CASE WHEN pr.goles_local = pa.goles_local AND pr.goles_visitante = pa.goles_visitante  THEN 3 WHEN (pr.goles_local - pr_goles_visitante) = (pa.goles_local - pa.goles_visitante) THEN 1  ELSE 0  END) AS puntos  FROM usuarios u  LEFT JOIN predicciones pr ON   u.id = pr.usuario_id  LEFT JOIN partidos pa ON  pr.partido_id = pa.id  GROUP BY u.id, u.nombre  ORDER BY puntos DESC""")
+    try:
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS total
+            FROM (
+                SELECT pr.usuario_id
+                FROM predicciones pr
+                JOIN partidos p ON pr.partido_id = p.id
+                WHERE p.goles_local IS NOT NULL AND p.goles_visitante IS NOT NULL
+                GROUP BY pr.usuario_id
+            ) AS subconsulta
+            """
+        )
+        total = cursor.fetchone()["total"]
 
-    ranking = cursor.fetchall()
+        if total == 0:
+            return "", 204
 
-    cursor.close()
-    conexion.close()
- 
-    return jsonify(ranking)
+        cursor.execute(
+            """
+            SELECT
+                pr.usuario_id AS id_usuario,
+                CAST(SUM(
+                    CASE
+                        WHEN pr.goles_local = p.goles_local
+                             AND pr.goles_visitante = p.goles_visitante THEN 3
+                        WHEN (
+                            (pr.goles_local > pr.goles_visitante AND p.goles_local > p.goles_visitante)
+                            OR
+                            (pr.goles_local < pr.goles_visitante AND p.goles_local < p.goles_visitante)
+                            OR
+                            (pr.goles_local = pr.goles_visitante AND p.goles_local = p.goles_visitante)
+                        ) THEN 1
+                        ELSE 0
+                    END
+                ) AS SIGNED) AS puntos
+            FROM predicciones pr
+            JOIN partidos p ON pr.partido_id = p.id
+            WHERE p.goles_local IS NOT NULL AND p.goles_visitante IS NOT NULL
+            GROUP BY pr.usuario_id
+            ORDER BY puntos DESC, pr.usuario_id ASC
+            LIMIT %s OFFSET %s
+            """,
+            (limit, offset),
+        )
+        ranking = cursor.fetchall()
 
+        for fila in ranking:
+            fila["puntos"] = int(fila["puntos"])
+
+        return jsonify({
+            "ranking": ranking,
+            "_links": construir_links("/ranking", limit, offset, total)
+        }), 200
+
+    except Exception as e:
+        return respuesta_error(str(e), 500)
+
+    finally:
+        cursor.close()
+        conexion.close()

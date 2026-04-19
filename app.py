@@ -2,9 +2,9 @@ from flask import Flask  #importo flask
 
 #agarramos cada 'paquete' de endpoints: /partidos, /usuarios y el ranking
 
-from routes.partidos import partidos_blueprint
-from routes.usuarios import usuarios_blueprint
-from routes.ranking import ranking_blueprint
+from partidos import partidos_blueprint
+from usuarios import usuarios_blueprint
+from ranking import ranking_blueprint
 
 app = Flask(__name__)
 
@@ -16,4 +16,4 @@ app.register_blueprint(ranking_blueprint)
 
 #ejecutamos el program
 if __name__ == "__main__":
-   app.run(debug==True) 
+   app.run(debug=True) 
