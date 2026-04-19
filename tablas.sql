@@ -1,13 +1,13 @@
-CREATE DATABASE IF NOT EXISTS prode_api;
+CREATE DATABASE IF NOT EXISTS TP2;
 
 CREATE USER IF NOT EXISTS 'prode_user'@'localhost' IDENTIFIED BY 'tu_contraseña_sql';
-GRANT ALL PRIVILEGES ON prode_api.* TO 'prode_user'@'localhost';
+GRANT ALL PRIVILEGES ON TP2.* TO 'prode_user'@'localhost';
 FLUSH PRIVILEGES;
-USE prode_api;
+USE TP2;
 
 CREATE TABLE IF NOT EXISTS usuarios (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(255) NOT NULL 
+    nombre VARCHAR(255) NOT NULL ,
     email VARCHAR(255) NOT NULL UNIQUE    
 );
 
@@ -29,14 +29,12 @@ CREATE TABLE IF NOT EXISTS predicciones(
     goles_visitante INT NOT NULL,
     UNIQUE KEY
     uq_usuario_partido (usuario_id, partido_id),
-    CONSTRAIT
+    CONSTRAINT
     fk_predicciones_usuario
     FOREIGN KEY
     (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-    CONSTRAIT
+    CONSTRAINT
     fk_predicciones_partido
     FOREIGN KEY
     (partido_id) REFERENCES partidos(id) ON DELETE CASCADE
 );
-
-EXIT;
